@@ -163,17 +163,16 @@ let _ =
 
 let _ =
   let expr = (fix (fun p -> let neWord = p            |> (fun xp1    ->
-				           terminal '+' |> (fun xplus  ->
-					   p            |> (fun xp2    ->
-				           success (xp1 @ (xplus :: xp2))))) in
-				  neWord <|> (terminal 'a' |> fun xa ->
-				              success (xa :: []))))  in
+				         terminal '+' |> (fun xplus  ->
+					 p            |> (fun xp2    ->
+				         success (xp1 @ (xplus :: xp2))))) in
+				neWord <|> (terminal 'a' |> fun xa ->
+				            success (xa :: [])))) in
   let pretest13 = (fix (fun p -> let neWord = expr         |> (fun xe     ->
-				                terminal ' ' |> (fun xspace ->
-					        p            |> (fun xp     ->
-				                success (xe @ (xspace :: xp))))) in
-      			             neWord <|> (expr |> fun xe ->
-     				                   success (xe))))  in
+				              terminal ' ' |> (fun xspace ->
+					      p            |> (fun xp     ->
+				              success (xe @ (xspace :: xp))))) in
+      			             neWord <|> (expr |> fun xe -> success xe))) in
   let test13 = (pretest13 |> (fun res -> eof |> (fun _ -> success res))) (fun res s -> [(of_chars res, s)]) in
   let () = printResult test13 "13" "1" "%s" "a+a+a+a" in
 	   printResult test13 "13" "2" "%s" "a+b a+a a*a"
