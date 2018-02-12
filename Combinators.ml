@@ -20,11 +20,14 @@ module Errors:
 
     type t = error list
 
-    val addError : error -> t -> t
-    val empty    : t
-    val length   : t -> int
-    val show     : t -> string
-    val equal    : t -> t -> bool
+    val showError : error -> string
+    val pos       : error -> int
+    val lastError : t -> error
+    val addError  : error -> t -> t
+    val empty     : t
+    val length    : t -> int
+    val show      : t -> string
+    val equal     : t -> t -> bool
 
   end =
   struct
@@ -32,19 +35,25 @@ module Errors:
     | Delete of char * int
     | Replace of char * int
 
+    let showError err = match err with
+    			| Delete (c, pos)  -> Printf.sprintf "#char %c was deleted on pos %d#\n" c (pos + 1)
+    			| Replace (c, pos) -> Printf.sprintf "#char %c was replaced with on pos %d#\n" c (pos + 1)
+
     let equalErr err1 err2 = match err1, err2 with
-                             | Delete (c1, pos1), Delete (c2, pos2) when c1 = c2 && pos1 = pos2 -> true
+                             | Delete (c1, pos1),  Delete (c2, pos2)  when c1 = c2 && pos1 = pos2 -> true
 			     | Replace (c1, pos1), Replace (c2, pos2) when c1 = c2 && pos1 = pos2 -> true
 			     | _, _ -> false
 
+    let pos err = match err with
+    		  | Delete (_, pos)  -> (pos + 1)
+    		  | Replace (_, pos) -> (pos + 1)
+
     type t = error list
 
+    let lastError    errs = List.hd errs
     let addError err errs = err :: errs
     let empty             = []
     let length            = List.length
-    let showError     err = match err with
-                            | Delete (c, pos) -> Printf.sprintf "#char %c was deleted on pos %d#\n" c (pos + 1)
-			    | Replace (c, pos) -> Printf.sprintf "#char %c was replaced with on pos %d#\n" c (pos + 1)
     let show         errs = List.fold_left (fun acc err -> acc ^ showError err) (Printf.sprintf "%d errors:\n" (List.length errs)) errs
     let equal errs1 errs2 = try List.fold_right2 (fun err1 err2 acc -> acc && (equalErr err1 err2)) errs1 errs2 true
                             with _ -> false
@@ -70,7 +79,7 @@ class stream (s : char list) =
       let rec cycle str offset = function
       | []                            -> str
       | Errors.Replace (c, pos) :: etc -> cycle str offset etc
-      | Errors.Delete (c, pos) :: etc -> cycle str (offset + 1) etc
+      | Errors.Delete (c, pos)  :: etc -> cycle str (offset + 1) etc
       in cycle (of_chars s) 0 errors
 
     method equal : stream -> bool =
@@ -208,18 +217,51 @@ let some ('a, 'b) parser -> ('a, 'b) parser =
 let (<+>) = some
 *)
 
-let bestResult results =
+(* filtering results *)
+let lastErrorResult results =
+try Some (List.fold_left (fun (r1, s1) (r2, s2) -> if Errors.pos (Errors.lastError s1 # errors) > Errors.pos (Errors.lastError s2 # errors) then (r1, s1) else (r2, s2))
+                         (List.hd results)
+		          results)
+with _ -> None
+
+let leastErrorResult results =
 try Some (List.fold_left (fun (r1, s1) (r2, s2) -> if Errors.length s1 # errors < Errors.length s2 # errors then (r1, s1) else (r2, s2))
                          (List.hd results)
 		          results)
 with _ -> None
 
-let printBestResult parser testNum testNumNum resType input =
-  match bestResult @@ parser (new stream @@ of_string @@ input) with
+let correctResult results =
+try List.fold_left (fun acc (r1, s1) -> if Errors.length s1 # errors = 0 then Some (r1, s1) else acc)
+                   None
+		   results
+with _ -> None
+
+(* printing results *)
+let printLastErrorResult parser testNum testNumNum resType input =
+  match lastErrorResult @@ parser (new stream @@ of_string @@ input) with
+  | Some (res, s) -> Printf.printf ("Test%s.%s: %s parsed with result = " ^^ resType ^^ " and %s\n") testNum testNumNum input res (Errors.showError (Errors.lastError s # errors))
+  | None          -> Printf.printf "Test%s.%s crushed\n" testNum testNumNum
+
+let printLeastErrorResult parser testNum testNumNum resType input =
+  match leastErrorResult @@ parser (new stream @@ of_string @@ input) with
   | Some (res, s) -> Printf.printf ("Test%s.%s: %s parsed with result = " ^^ resType ^^ " and %s\n") testNum testNumNum input res (Errors.show s # errors)
   | None          -> Printf.printf "Test%s.%s crushed\n" testNum testNumNum
 
 let printAllResults parser testNum testNumNum resType input =
   List.iter (fun (res, s) -> Printf.printf ("Test%s.%s: %s parsed with result = " ^^ resType ^^ " and %s\n") testNum testNumNum input res (Errors.show s # errors)) (parser (new stream @@ of_string @@ input))
 
-let printResult = printBestResult
+let printResult = printLeastErrorResult
+
+type 'b execResult =
+| Parsed of 'b
+| Failed of 'b * Errors.error
+| Crushed
+
+let run : (stream -> ('b, stream) result) -> string -> 'b execResult =
+  fun parser input ->
+    let results = parser (new stream @@ of_string @@ input) in
+    match correctResult results with
+    | Some (res, s) -> Parsed res
+    | None          -> (match lastErrorResult results with
+                        | Some (res, s) -> Failed (res, (Errors.lastError s # errors))
+                        | _             -> Crushed)
