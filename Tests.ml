@@ -1,4 +1,6 @@
 open Combinators
+open Types
+open Errors
 
 let _ =
   let test1 = ((fun k stream' -> stream' # look 'a' k) |> (fun xa ->
@@ -137,8 +139,7 @@ let _ =
   let pretest11 = someFold (fun b bs -> b :: bs) [] (terminal 'b') in
   let test11 = (pretest11 |> (fun res -> eof |> (fun _ -> success res))) (fun res s -> [(of_chars res, s)]) in
   let () = printResult test11 "11" "1" "%s" "bbbbbbbbb" in
-  let () = printResult test11 "11" "2" "%s" "bbbcb" in
-	   printResult test11 "11" "3" "%s" ""
+           printResult test11 "11" "2" "%s" "bbbcb"
 
 let _ =
   let expr n =
