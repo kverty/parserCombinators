@@ -23,7 +23,7 @@ module Errors:
 
     let showError err = match err with
     			| Delete (c, pos)  -> Printf.sprintf "#char %c was deleted on pos %d#\n" c (pos + 1)
-    			| Replace (c, pos) -> Printf.sprintf "#char %c was replaced with on pos %d#\n" c (pos + 1)
+    			| Replace (c, pos) -> Printf.sprintf "#char %c was placed on pos %d#\n" c (pos + 1)
 
     let equalErr err1 err2 = match err1, err2 with
                              | Delete (c1, pos1),  Delete (c2, pos2)  when c1 = c2 && pos1 = pos2 -> true
