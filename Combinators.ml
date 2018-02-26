@@ -5,14 +5,14 @@ open Errors
 open Result
 
 let return : 'a -> ('a, 'b) parser =
-  fun x k s -> k x s
+  fun x s k -> k x s
 
 let cast : ('b, 'stream) result -> ('b, 'stream) result =
   function Failed x -> Failed x | _ -> invalid_arg "Ostap.cast"
 
 let map : ('b -> 'c) -> ('a, 'b) parser -> ('a, 'c) parser =
-  fun f p k s ->
-    match p k s with
+  fun f p s k ->
+    match p s k with
     | Parsed ((b, s'), e) -> Parsed ((f b, s'), e)
     | x -> cast x
 
@@ -22,14 +22,14 @@ let empty : (unit, 'b) parser =
   fun k -> return () k
 
 let fail : ('b, 'stream) falseResult -> ('a, 'b) parser =
- fun r k s -> Failed r
+ fun r s k -> Failed r
 
 let lift : ('a, stream) parser =
-  fun k s -> Parsed ((s, s), None)
+  fun s k -> Parsed ((s, s), None)
 
 let sink : ('a, 'b) parser -> ('a, stream) parser =
-  fun p k s ->
-    match p k s with
+  fun p s k ->
+    match p s k with
     | Parsed ((s, _), f) -> Parsed ((s, s), f)
     | Failed x           -> Failed x
 
@@ -58,30 +58,30 @@ let memoresult : ('a, 'b) parser' -> ('a, 'b) parser' =
 let memo : ('a, 'b) parser -> ('a, 'b) parser =
   fun f ->
     let table : (stream, ('a, 'b) parser') Hashtbl.t = Hashtbl.create 16 in
-    fun k s ->
+    fun s k ->
       try Option.get (Hashtbl.fold (fun s' p' acc -> match acc with
                                                      | Some _                   -> acc
 					             | None when (s # equal s') -> Some p'
 					             | _                        -> None
 				   ) table None) k
       with _ ->
-        let r = memoresult @@ (fun k -> f k s) in
+        let r = memoresult @@ (f s) in
         Hashtbl.add table s r; r k
 
 let alt : ('a, 'b) parser -> ('a, 'b) parser -> ('a, 'b) parser =
-  fun x y -> memo (fun k s -> (x k s) <@> (y k s))
+  fun x y -> memo (fun s k -> (x s k) <@> (y s k))
 
 let (<|>) = alt
 
 let seq : ('a, 'b) parser -> ('a -> ('c, 'b) parser) -> ('c, 'b) parser =
-  fun x y k -> x (fun a -> y a k)
+  fun x y s k -> x s (fun a s -> y a s k)
 
 let (|>) = seq
 
 let opt : ('a, 'b) parser -> ('a option, 'b) parser =
-  fun p k s -> let s' = Oo.copy s in
+  fun p s k -> let s' = Oo.copy s in
                let k' = fun a s -> (k (Some a) s) <@> (k None s') in
-	       p k' s
+	       p s k'
 
 let (<?>) = opt
 
@@ -109,8 +109,8 @@ let some : ('a, 'b) parser -> ('a, 'b list) parser =
 let (<+>) = some
 *)
 let guard (*: ('a, 'b) parser -> ('b -> bool) -> ('b, stream) falseResult -> ('a, 'b) parser*) =
-  fun p f r k s ->
-    match p k s with
+  fun p f r s k ->
+    match p s k with
     | (Parsed ((b, _), _) as x) ->
         if f b
         then x

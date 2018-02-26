@@ -23,32 +23,32 @@ let printIntResult parser testNum testNumNum input =
   | Failed None                     -> Printf.printf "Test %s.%s crushed\n" testNum testNumNum
 
 let _ =
-  let test1 = ((fun k stream' -> stream' # look 'a' k) |> (fun xa ->
-	       (fun k stream' -> stream' # look 'b' k) |> (fun xb ->
-		return (xa :: xb :: [])))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test1 s = ((fun stream' -> stream' # look 'a') |> (fun xa ->
+	         (fun stream' -> stream' # look 'b') |> (fun xb ->
+		  return (xa :: xb :: [])))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test1 "01" "1" "ab" in
            printStringResult test1 "01" "2" "ac"
 
 let _ =
-  let test2 = ((fun k stream' -> (stream' # look 'a') k) <|> (fun k stream' -> (stream' # look 'b') k)) (fun res s -> Parsed ((res, s), None)) in
+  let test2 s = ((fun stream' -> (stream' # look 'a')) <|> (fun stream' -> (stream' # look 'b'))) s (fun res s -> Parsed ((res, s), None)) in
     let () = printCharResult test2 "02" "1" "b" in
              printCharResult test2 "02" "2" "c"
 
 let _ =
-  let pretest3 = (fix (fun p -> let neWord = (fun k stream' -> (stream' # look 'a') k) |> (fun xa ->
-					     p                                         |> (fun xp ->
+  let pretest3 = (fix (fun p -> let neWord = (fun stream' -> (stream' # look 'a')) |> (fun xa ->
+					     p                                     |> (fun xp ->
 					     return (xa :: xp))) in
-                                    neWord <|> ((fun k stream' -> (stream' # look 'a') k) |> fun xa ->
+                                    neWord <|> ((fun stream' -> (stream' # look 'a')) |> fun xa ->
 				                 return (xa :: [])))) in
-  let test3 = (pretest3 |> (fun res -> (fun k stream' -> (stream' # getEOF) k) |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test3 s = (pretest3 |> (fun res -> (fun stream' -> (stream' # getEOF)) |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test3 "03" "1" "aaa" in
 	   printStringResult test3 "03" "2" "aaaba"
 
 let terminal : char -> (char, 'b) parser =
-  fun c k stream' -> (stream' # look c) k
+  fun c stream' k -> (stream' # look c) k
 
 let eof : (unit, 'b) parser =
-  fun k stream' -> (stream' # getEOF) k
+  fun stream' k -> (stream' # getEOF) k
 
 let _ =
   let pretest4 = (fix (fun p -> let neWord = p            |> (fun xp ->
@@ -56,7 +56,7 @@ let _ =
 				             return (xp @ (xa :: [])))) in
 				    neWord <|> (terminal 'a' |> fun xa ->
 				                return (xa :: [])))) in
-  let test4 = (pretest4 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test4 s = (pretest4 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test4 "04" "1" "aaa" in
            printStringResult test4 "04" "2" "aaaba"
 
@@ -67,7 +67,7 @@ let _ =
 				             return (xp1 @ (xplus :: xp2))))) in
 				    neWord <|> (terminal 'a' |> fun xa ->
 				                return (xa :: []))))  in
-  let test5 = (pretest5 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test5 s = (pretest5 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test5 "05" "1" "a+a+a+a" in
 	   printStringResult test5 "05" "2" "a+a+a+b+a"
 
@@ -87,7 +87,7 @@ let _ =
 				     aWord <|> bWord <|> cWord     <|>
 				     (empty |> fun _ -> return 0) <|>
 				     ((terminal 'a' <|> terminal 'b' <|> terminal 'c') |> fun _ -> return 1))) in
-  let test6 = (pretest6 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((res, s), None)) in
+  let test6 s = (pretest6 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((res, s), None)) in
   let () = printIntResult test6 "06" "1" "abba" in
   let () = printIntResult test6 "06" "2" "abcba" in
 	   printIntResult test6 "06" "3" "abac"
@@ -104,14 +104,14 @@ let _ =
 					      	     return (xp @ (xmult :: xpr))))) in
 					primary <|> multWord)) @@ k and
 	  primary  k = ((terminal 'a' <|> terminal 'b' <|> terminal 'c') |> fun xt -> return (xt :: [])) @@ k in
-  let test7 = (pretest7 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test7 s = (pretest7 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test7 "07" "1" "a+b+c" in
   let () = printStringResult test7 "07" "2" "a*b+c" in
   let () = printStringResult test7 "07" "3" "a+b+*c" in
 	   printStringResult test7 "07" "4" "a+b+"
 
 let _ =
-  let expr n =
+  let expr n s =
     let rec e k = (fix (fun s -> let plusWord = s              |> (fun xs    ->
 				                (terminal '+' <|>
 						 terminal '-') |> (fun xplus ->
@@ -128,7 +128,7 @@ let _ =
 	  		  e            |> (fun xe   ->
 	  		  terminal ')' |> (fun xbr2 ->
 	  		  return ((xbr1 :: xe) @ (xbr2 :: []))))))) @@ k in
-  (e |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  (e |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult (expr (terminal 'n' |> fun xt -> return (xt :: []))) "08" "1" "(n-n)" in
   let () = printStringResult (expr (terminal 'n' |> fun xt -> return (xt :: []))) "08" "2" "(n--n)" in
   let () = printStringResult (expr ((terminal 'a' <|> terminal 'b') |> fun xt -> return (xt :: []))) "08" "3" "(b+a)" in
@@ -144,25 +144,25 @@ let _ =
 				       return (xp1 @ xp2)))) <|>
 				      (terminal 'b' |> fun xb -> return (xb :: [])) <|>
 				      (empty |> fun _ -> return []))) @@ k in
-  let test9 = (pretest9 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test9 s = (pretest9 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test9 "09" "1" "bbbbbbbbbbb" in
 	   printStringResult test9 "09" "2" "bbbcb"
 
 let _ =
   let pretest10 = manyFold (fun b bs -> b :: bs) [] (terminal 'b') in
-  let test10 = (pretest10 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test10 s = (pretest10 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test10 "10" "1" "bbbbbbbbb" in
   let () = printStringResult test10 "10" "2" "bbbcb" in
 	   printStringResult test10 "10" "3" ""
 
 let _ =
   let pretest11 = someFold (fun b bs -> b :: bs) [] (terminal 'b') in
-  let test11 = (pretest11 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test11 s = (pretest11 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test11 "11" "1" "bbbbbbbbb" in
            printStringResult test11 "11" "2" "bbbcb"
 
 let _ =
-  let expr n =
+  let expr n s =
     let rec e k = (fix (fun s -> let plusWord = s            |> (fun xs    ->
 				                (terminal '+' <|>
 						 terminal '-') |> (fun xplus ->
@@ -179,7 +179,7 @@ let _ =
 	  		  e            |> (fun xe ->
 	  		  terminal ')' |> (fun _  ->
 	  		  return xe))))) @@ k in
-  (e |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((res, s), None)) in
+  (e |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((res, s), None)) in
   printIntResult (expr ((terminal '0' <|> terminal '1' <|> terminal '2' <|> terminal '3') |> (fun t -> return ((Char.code t) - 48)))) "12" "1" "2*3+1"
 
 let _ =
@@ -194,6 +194,6 @@ let _ =
 					      p            |> (fun xp     ->
 				              return (xe @ (xspace :: xp))))) in
       			             neWord <|> (expr |> fun xe -> return xe))) in
-  let test13 = (pretest13 |> (fun res -> eof |> (fun _ -> return res))) (fun res s -> Parsed ((of_chars res, s), None)) in
+  let test13 s = (pretest13 |> (fun res -> eof |> (fun _ -> return res))) s (fun res s -> Parsed ((of_chars res, s), None)) in
   let () = printStringResult test13 "13" "1" "a+a+a+a" in
 	   printStringResult test13 "13" "2" "a+b a+a a*a"
