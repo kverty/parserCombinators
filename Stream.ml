@@ -27,17 +27,18 @@ class stream (s : char list) =
       let rec f l p' = if (p' = 0) then l else f (List.tl l) (p' - 1)
       in of_chars (f s p)
 
-    method correctErrors =
-      let rec cycle str offset = function
-      | []                            -> str
-      | Errors.Replace (c, pos) :: etc -> cycle str offset etc
-      | Errors.Delete (c, pos)  :: etc -> cycle str (offset + 1) etc
-      in cycle (of_chars s) 0 errors
-
     method equal : stream -> bool =
       fun s' -> (s = s' # chrs) && (p = s' # pos) && (Errors.equal errors (s' # errors))
 
-    method look : 'b . char -> (char -> 'self -> ('b, 'self) result) -> ('b, 'self) result =
+    method look : 'b . string -> (string -> 'self -> ('b, 'self) result) -> ('b, 'self) result =
+      fun cs k ->
+        let rec loop chars result =
+	  match chars with
+	  | [] -> k (of_chars result)
+	  | c :: tail -> fun s -> s # lookChar c (fun res s' -> loop tail (res :: result) s')
+	in loop (of_string cs) [] self
+
+    method lookChar : 'b . char -> (char -> 'self -> ('b, 'self) result) -> ('b, 'self) result =
       fun c k ->
       try
         if c = List.nth s p
@@ -45,7 +46,7 @@ class stream (s : char list) =
         else begin
 	  let err1 = Errors.Delete (List.nth s p, p) in
 	  let err2 = Errors.Replace (c, p) in
-	  let res1 = (match ({< p = p + 1; errors = Errors.addError err1 errors >} # look c k) with
+	  let res1 = (match ({< p = p + 1; errors = Errors.addError err1 errors >} # lookChar c k) with
 	              | Parsed (res, _) -> Failed (Some (res, err1))
 		      | Failed x        -> Failed x) in
 	  let res2 = (match (k c {< p = p + 1; errors =  Errors.addError err2 errors>}) with

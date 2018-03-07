@@ -19,7 +19,7 @@ let map : ('b -> 'c) -> ('a, 'b) parser -> ('a, 'c) parser =
 let (-->) p f = map f p
 
 let empty : (unit, 'b) parser =
-  fun k -> return () k
+  fun s k -> return () s k
 
 let fail : ('b, 'stream) falseResult -> ('a, 'b) parser =
  fun r s k -> Failed r
@@ -74,7 +74,7 @@ let alt : ('a, 'b) parser -> ('a, 'b) parser -> ('a, 'b) parser =
 let (<|>) = alt
 
 let seq : ('a, 'b) parser -> ('a -> ('c, 'b) parser) -> ('c, 'b) parser =
-  fun x y s k -> x s (fun a s -> y a s k)
+  fun x y s k -> x s (fun a s' -> y a s' k)
 
 let (|>) = seq
 
