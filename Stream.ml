@@ -58,9 +58,15 @@ class stream (s : char list) =
 	end
       with _ -> emptyResult
 
-    method getEOF : 'b . (unit -> 'self -> ('b, 'self) result) -> ('b, 'self) result =
+    method getCONST : 'b . (string -> 'self -> ('b, 'self) result) -> ('b, 'self) result =
+    fun k ->
+      if List.nth s p = '1'
+      then k "ha" {< p = p + 1 >}
+      else emptyResult
+
+    method getEOF : 'b . (string -> 'self -> ('b, 'self) result) -> ('b, 'self) result =
       fun k ->
         if p = List.length s
-        then k () self
+        then k "eof" self
         else emptyResult
   end
